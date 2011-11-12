@@ -1,0 +1,250 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xmlns:spring="http://www.springframework.org/schema/beans"
+      xmlns:vm="http://www.mulesoft.org/schema/mule/vm"
+      xmlns:http="http://www.mulesoft.org/schema/mule/http"
+      xmlns:jdbc="http://www.mulesoft.org/schema/mule/jdbc"
+      xmlns:jms="http://www.mulesoft.org/schema/mule/jms"
+      xmlns:cxf="http://www.mulesoft.org/schema/mule/cxf"
+      xmlns:jersey="http://www.mulesoft.org/schema/mule/jersey"
+      xmlns:test="http://www.mulesoft.org/schema/mule/test"
+      xsi:schemaLocation="
+        http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd
+        http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/3.2/mule.xsd
+        http://www.mulesoft.org/schema/mule/vm http://www.mulesoft.org/schema/mule/vm/3.2/mule-vm.xsd
+        http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/3.2/mule-http.xsd
+        http://www.mulesoft.org/schema/mule/jdbc http://www.mulesoft.org/schema/mule/jdbc/3.2/mule-jdbc.xsd
+        http://www.mulesoft.org/schema/mule/jms http://www.mulesoft.org/schema/mule/jms/3.2/mule-jms.xsd
+        http://www.mulesoft.org/schema/mule/cxf http://www.mulesoft.org/schema/mule/cxf/3.2/mule-cxf.xsd
+        http://www.mulesoft.org/schema/mule/jersey http://www.mulesoft.org/schema/mule/jersey/3.2/mule-jersey.xsd
+        http://www.mulesoft.org/schema/mule/test http://www.mulesoft.org/schema/mule/test/3.2/mule-test.xsd">
+
+    <description>
+        This configuration retrieves AirplaneTicketPrice requests for a supplied 'airportCode'.
+    </description>
+
+    <spring:beans>
+        <spring:bean id="UnitedPriceBean" class="com.mulesoft.training.airportticketprice.SimpleTicketPriceImpl">
+            <spring:property name="priceMap">
+                <spring:map>
+                    <spring:entry key="SFO">
+                        <spring:value>400</spring:value>
+                    </spring:entry>
+                    <spring:entry key="OAK">
+                        <spring:value>300</spring:value>
+                    </spring:entry>
+                    <spring:entry key="LAX">
+                        <spring:value>550</spring:value>
+                    </spring:entry>
+                    <spring:entry key="KOA">
+                        <spring:value>1500</spring:value>
+                    </spring:entry>
+                </spring:map>
+            </spring:property>
+        </spring:bean>
+
+        <spring:bean id="FinnAirPriceBean" class="com.mulesoft.training.airportticketprice.FinnAirTicketPrice">
+            <spring:property name="priceMap">
+                <spring:map>
+                    <spring:entry key="SFO">
+                        <spring:value>700</spring:value>
+                    </spring:entry>
+                    <spring:entry key="OAK">
+                        <spring:value>200</spring:value>
+                    </spring:entry>
+                    <spring:entry key="LAX">
+                        <spring:value>350</spring:value>
+                    </spring:entry>
+                    <spring:entry key="KOA">
+                        <spring:value>1600</spring:value>
+                    </spring:entry>
+                </spring:map>
+            </spring:property>
+        </spring:bean>
+
+        <spring:bean id="FrontierPriceBean" class="com.mulesoft.training.airportticketprice.FrontierTicketPrice">
+            <spring:property name="priceMap">
+                <spring:map>
+                    <spring:entry key="SFO">
+                        <spring:value>420</spring:value>
+                    </spring:entry>
+                    <spring:entry key="OAK">
+                        <spring:value>320</spring:value>
+                    </spring:entry>
+                    <spring:entry key="LAX">
+                        <spring:value>520</spring:value>
+                    </spring:entry>
+                    <spring:entry key="KOA">
+                        <spring:value>1520</spring:value>
+                    </spring:entry>
+                </spring:map>
+            </spring:property>
+        </spring:bean>
+
+        <spring:bean id="SetupDatabaseNotificationListener"
+                     class="com.mulesoft.training.airportticketprice.SetupDatabaseNotificationListener"/>
+
+        <spring:bean id="jdbcDataSource" class="org.enhydra.jdbc.standard.StandardDataSource" destroy-method="shutdown">
+            <spring:property name="driverName"
+                             value="org.apache.derby.jdbc.EmbeddedDriver"/>
+            <spring:property name="url"
+                             value="jdbc:derby:memory:muleEmbeddedDB;create=true"/>
+        </spring:bean>
+
+
+    </spring:beans>
+
+    <!-- Notifications are used by Mule to perform tasks when certain events are triggered -->
+    <!-- In this example the event "CONTEXT" is being used, which triggers on both StartUp -->
+    <!-- and ShutDown of a Mule Instance (and at other times also) -->
+    <notifications>
+        <notification event="CONTEXT"/>
+        <notification-listener ref="SetupDatabaseNotificationListener"/>
+    </notifications>
+
+    <jdbc:connector name="jdbcConnector" dataSource-ref="jdbcDataSource">
+        <jdbc:query key="TicketPriceSearch" value="SELECT PRICE FROM TicketPrices WHERE DESTINATION = #[payload:]"/>
+        <!--<jdbc:query key="UpdateExample" value="UPDATE Jobs SET Started=#[function:now] WHERE Id = #[map-payload:Id]"/>-->
+        <!--<jdbc:query key="InsertExample" value="INSERT INTO Tasks (JobId,Task) VALUES (#[map-payload:Id],#[map-payload:Task])"/>-->
+    </jdbc:connector>
+
+    <!-- ActiveMQ in memory instance -->
+    <!-- Note: ActiveMQ also has their own concept of VM which is distinct from Mule VM -->
+    <!-- It essentially refers to a bootstrapped in memory ActiveMQ instance instead of standalone instance -->
+    <jms:activemq-connector name="jmsConnector" brokerURL="vm://localhost"/>
+
+    <!--<custom-transformer name="HttpRequestToAirportCodeString"-->
+    <!--class="com.mulesoft.training.airportticketprice.HttpRequestToAirportCodeString"/>-->
+
+    <flow name="AirportTicketPriceFlow">
+
+        <!-- Composite source allows me to receive input from multiple sources, in this case VM and Http -->
+        <composite-source>
+
+            <!-- Incoming VM requests -->
+            <vm:inbound-endpoint path="ticketPriceRequest" exchange-pattern="request-response"/>
+
+            <!-- Incoming HTTP requests -->
+            <!-- To invoke the AirPlaneTicketPrice service enter an Airport code in a browser i.e. http://localhost:8444?airportCode=SFO -->
+            <http:inbound-endpoint address="http://localhost:8444" exchange-pattern="request-response">
+                <not-filter>
+                    <wildcard-filter pattern="/favicon.ico"/>
+                </not-filter>
+
+                <!-- Convert incoming http request string to parameter map -->
+                <http:body-to-parameter-map-transformer/>
+
+                <!-- Use expression transformer to retrieve the airportCode value -->
+                <expression-transformer evaluator="map-payload" expression="airportCode"/>
+
+                <response>
+                    <!-- Transform the message before responding to the consumer and set appropriate message properties-->
+                    <object-to-string-transformer/>
+                    <message-properties-transformer>
+                        <add-message-property key="Content-Type" value="text/html"/>
+                    </message-properties-transformer>
+                </response>
+            </http:inbound-endpoint>
+
+        </composite-source>
+
+        <!-- Need to add filtering and routing logic here, review Mule user guide -->
+        <logger level="INFO" message="Payload BEFORE is: #[payload:]"/>
+
+        <!-- This is the heart of this application, an ALL router that retrieves ticket prices -->
+        <!-- from various airlines (sources), using a variety of transports and service implementations -->
+        <!--for a supplied 'airportCode' -->
+        <all>
+            <!-- Retrieve United ticket price for supplied 'airportCode' using CXF web service -->
+            <http:outbound-endpoint address="http://localhost:8050/price" exchange-pattern="request-response">
+                <cxf:jaxws-client serviceClass="com.mulesoft.training.airportticketprice.SimpleTicketPrice"
+                                  operation="priceRequest"/>
+            </http:outbound-endpoint>
+
+            <!-- Retrieve Delta ticket price for supplied 'airportCode' using information stored in database (JDBC transport) -->
+            <flow-ref name="DeltaPrice_JDBC"/>
+
+            <!-- Retrieve FinnAir ticket price for supplied 'airportCode' using VM endpoint and JMS request-reply pattern -->
+            <vm:outbound-endpoint path="FinnAir" exchange-pattern="request-response"/>
+
+            <!-- Retrieve Frontier ticket price for supplied  'airportCode' using a REST service (Jersey) -->
+            <http:outbound-endpoint address="http://localhost:8051/ticketPrice/#[payload:]"
+                                    exchange-pattern="request-response" method="GET">
+                <response>
+                    <object-to-string-transformer/>
+                    <expression-transformer evaluator="groovy" expression="'$' + payload + ' (USD) Frontier Airlines'"/>
+                </response>
+            </http:outbound-endpoint>
+        </all>
+
+        <!-- Just included for testing purposes only -->
+        <test:component/>
+
+        <logger level="INFO" message="Payload AFTER is: #[payload:]"/>
+
+    </flow>
+
+    <flow name="UnitedPrice">
+        <http:inbound-endpoint address="http://localhost:8050/price" exchange-pattern="request-response">
+            <cxf:jaxws-service serviceClass="com.mulesoft.training.airportticketprice.SimpleTicketPrice"/>
+        </http:inbound-endpoint>
+
+        <component>
+            <spring-object bean="UnitedPriceBean"/>
+        </component>
+
+        <expression-transformer evaluator="groovy" expression="'$' + payload + ' (USD) United Airlines'"/>
+    </flow>
+
+    <flow name="DeltaPrice_JDBC">
+
+        <!-- Note: request-response for synchronous invocation of database -->
+        <jdbc:outbound-endpoint queryKey="TicketPriceSearch" exchange-pattern="request-response"/>
+
+        <!-- Extract PRICE value from payload of message returned by jdbc call -->
+        <!-- Note: An array of items is return by JDBC to cater for multiple rows -->
+        <expression-transformer evaluator="groovy" expression="'$' + payload[0].PRICE + ' (USD) Delta Airlines'"/>
+
+    </flow>
+
+    <flow name="FinnAirPrice_VM">
+        <vm:inbound-endpoint path="FinnAir" exchange-pattern="request-response"/>
+
+        <!-- Using request-reply pattern to invoke FinnAir_JMS flow here -->
+        <request-reply>
+            <jms:outbound-endpoint queue="FINNAIR.REQUEST"/>
+            <jms:inbound-endpoint queue="FINNAIR.RESPONSE"/>
+        </request-reply>
+
+        <expression-transformer evaluator="groovy" expression="'$' + payload + ' (USD) FinnAir Airlines'"/>
+    </flow>
+
+    <flow name="FinnAirPrice_JMS">
+        <jms:inbound-endpoint queue="FINNAIR.REQUEST"/>
+
+        <component>
+            <spring-object bean="FinnAirPriceBean"/>
+        </component>
+
+        <jms:outbound-endpoint queue="FINNAIR.RESPONSE"/>
+    </flow>
+
+    <flow name="FrontierPrice_REST">
+        <http:inbound-endpoint address="http://localhost:8051/" exchange-pattern="request-response">
+        </http:inbound-endpoint>
+        <jersey:resources>
+            <component>
+                <spring-object bean="FrontierPriceBean"/>
+            </component>
+        </jersey:resources>
+
+        <!-- Note: Object returned from Jersey implementation is a MuleMessageResponseWriter so need to do some transformation just to extract payload -->
+        <!--<expression-transformer evaluator="groovy" expression="message.getInvocationProperty('jersey_response').getResponse().getEntity().toString()"/>-->
+        <!--<logger level="INFO" message="REST response payload is: #[payload:]"/>-->
+
+        <!--<expression-transformer evaluator="groovy" expression="'$' + payload + ' (USD) Frontier Airlines'"/>-->
+    </flow>
+
+
+</mule>
